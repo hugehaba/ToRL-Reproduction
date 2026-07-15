@@ -1,0 +1,11 @@
+*.bin
+*.safetensors
+*.pt
+*.pth
+output_torl/
+models/
+*.log
+__pycache__/
+*.pyc
+.env
+.DS_Store
