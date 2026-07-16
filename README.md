@@ -98,31 +98,52 @@ The strongest improvements appear between step 100 and step 220. MATH500 peaks a
 git clone https://github.com/GAIR-NLP/ToRL
 cd ToRL
 # Download Qwen2.5-Math-7B-Base to your local model directory
-2. Install key dependencies
+```
+
+### 2. Install key dependencies
+
+```bash
 pip install "qwen-agent[python_executor]"
 pip install math-verify
 pip install accelerate
+```
 
 Flash Attention was built from source to match the local PyTorch / CUDA / ABI environment.
 
-3. Set environment variables
+### 3. Set environment variables
+
+```bash
 export VLLM_USE_V1=0
 export NCCL_CUMEM_ENABLE=0
 export LD_LIBRARY_PATH=/root/miniconda3/lib/python3.12/site-packages/torch/lib:/root/miniconda3/lib:/root/miniconda3/lib64:$LD_LIBRARY_PATH
-4. Run training
+```
+
+### 4. Run training
+
+```bash
 cd scripts
 bash torl_7b_2gpu.sh
-Engineering Notes
+```
+
+---
+
+## Engineering Notes
 
 Running ToRL on a 2-GPU AutoDL instance required several practical fixes:
 
-IssueFix
-Flash Attention binary ABI mismatchRebuilt flash-attn==2.7.4.post1 from source
-Missing accelerate dependencyInstalled accelerate for FSDP initialization
-libc10.so not foundAdded PyTorch library path to LD_LIBRARY_PATH
-vLLM / Ray initialization warningsVerified non-fatal after model and rollout engine loaded successfully
-Long training scheduleStopped after obtaining checkpoints and validation results up to step 260
-Project Structure
+| Issue | Fix |
+|---|---|
+| Flash Attention binary ABI mismatch | Rebuilt `flash-attn==2.7.4.post1` from source |
+| Missing `accelerate` dependency | Installed `accelerate` for FSDP initialization |
+| `libc10.so` not found | Added PyTorch library path to `LD_LIBRARY_PATH` |
+| vLLM / Ray initialization warnings | Verified non-fatal after model and rollout engine loaded successfully |
+| Long training schedule | Stopped after obtaining checkpoints and validation results up to step 260 |
+
+---
+
+## Project Structure
+
+```text
 ToRL-Reproduction/
 ├── README.md
 ├── scripts/
@@ -138,13 +159,21 @@ ToRL-Reproduction/
 │   └── torl_validation_best_metrics.csv
 └── logs/
     └── torl_train.log
-Notes
+```
+
+---
+
+## Notes
 
 This reproduction focuses on running and analyzing the ToRL training pipeline rather than releasing a final merged HuggingFace checkpoint.
 
 The original training checkpoint is stored in FSDP-sharded format. Since the original repository does not provide a standalone evaluation script, this report uses the validation results automatically produced during training. These results are suitable for reproduction analysis and training-dynamics discussion, but should not be described as an official final benchmark.
 
-Citation
+---
+
+## Citation
+
+```bibtex
 @misc{li2025torlscalingtoolintegratedrl,
   title={ToRL: Scaling Tool-Integrated RL},
   author={Xuefeng Li and Haoyang Zou and Pengfei Liu},
@@ -152,6 +181,10 @@ Citation
   eprint={2503.23383},
   archivePrefix={arXiv}
 }
-Acknowledgements
+```
 
-This project is based on the official GAIR-NLP/ToRL repository.
+---
+
+## Acknowledgements
+
+This project is based on the official [GAIR-NLP/ToRL](https://github.com/GAIR-NLP/ToRL) repository.
