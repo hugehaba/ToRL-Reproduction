@@ -1,0 +1,5 @@
+metric,best_step,best_accuracy_percent,baseline_step0_percent,absolute_gain_percent_points
+AIME24,160,30.0,10.0,20.0
+MATH500,200,59.0,48.5,10.5
+AIME25,220,18.3,3.3,15.0
+Average,160,34.5,20.6,13.9
