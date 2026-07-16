@@ -1,3 +1,11 @@
+# ToRL-Reproduction
+
+Reproduction and training dynamics analysis of **ToRL: Scaling Tool-Integrated RL** on a 2-GPU AutoDL instance.
+
+ToRL trains large language models to use Python code execution as an external tool during mathematical reasoning. This reproduction focuses on running the ToRL / verl training pipeline with **Qwen2.5-Math-7B-Base**, analyzing training-time validation behavior, and documenting practical engineering issues encountered during reproduction.
+
+---
+
 ## Results
 
 We report training-time validation accuracy from the ToRL training pipeline. Validation was automatically performed during training using the same sandbox-based Python execution and math-verification scoring setup.
@@ -78,162 +86,65 @@ The validation curve shows that ToRL improves mathematical reasoning performance
 
 ![Validation curve](analysis/torl_validation_accuracy_curve.png)
 
-The strongest improvements appear between step 100 and step 220. MATH500 peaks at step 200, while AIME24 and AIME25 peak at step 160/220. After step 220, the average validation score drops slightly, suggesting possible instability or over-optimization under the current small-scale 2-GPU setting.# ToRL-Reproduction
-
-Reproduction and training dynamics analysis of **ToRL: Scaling Tool-Integrated RL** ([arXiv 2503.23383](https://arxiv.org/abs/2503.23383)) on 2×NVIDIA A800 80GB.
-
-> **ToRL** trains LLMs to autonomously use Python code execution as a tool via GRPO reinforcement learning, achieving significant improvements on mathematical reasoning benchmarks.
-
----
-
-## Results
-
-| Checkpoint | MATH500 | AIME 2024 | AIME 2025 |
-|-----------|---------|-----------|-----------|
-| Base model (step 0) | 50.7% | 10.0% | 10.8% |
-| Step 50 | TBD | TBD | TBD |
-| Step 100 | TBD | TBD | TBD |
-| Final (step 250) | TBD | TBD | TBD |
-| ToRL paper (reported) | ~80%+ | 43.3% | — |
-
-*Results will be updated as training completes.*
-
----
-
-## Environment
-
-| Component | Version |
-|-----------|---------|
-| Hardware | 2× NVIDIA A800 80GB PCIe |
-| PyTorch | 2.6.0 |
-| vLLM | 0.8.1 |
-| Ray | 2.44.0 |
-| Flash Attention | 2.7.4 |
-| Transformers | 4.50.0 |
-| CUDA | 13.0 |
-
----
-
-## Training Configuration
-
-| Parameter | Value |
-|-----------|-------|
-| Base model | Qwen2.5-Math-7B-Base |
-| Training method | Full parameter FSDP (no LoRA) |
-| Algorithm | GRPO |
-| Rollout batch size | 32 prompts × 8 samples |
-| Max response length | 1536 tokens |
-| Learning rate | 1e-6 |
-| KL coefficient | 0.0 |
-| Tool calls per step | 1 (C=1) |
-| Total steps | 250 |
-| GPU memory utilization | 0.5 |
-| Tensor parallel size | 2 |
-
----
-
-## Key Differences from Paper
-
-| Aspect | Paper | This Reproduction |
-|--------|-------|-------------------|
-| GPU | 8× A100 (estimated) | 2× A800 |
-| Response length | 3072 | 1536 (memory constraint) |
-| Total steps | 300 | 250 |
-| ppo_max_token_len_per_gpu | 16384 | 8192 |
+The strongest improvements appear between step 100 and step 220. MATH500 peaks at step 200, while AIME24 and AIME25 peak at step 160/220. After step 220, the average validation score drops slightly, suggesting possible instability or over-optimization under the current small-scale 2-GPU setting.
 
 ---
 
 ## How to Reproduce
 
-### 1. Clone ToRL and download model
+### 1. Clone ToRL and download the base model
 
 ```bash
 git clone https://github.com/GAIR-NLP/ToRL
 cd ToRL
-# Download Qwen2.5-Math-7B-Base to your model directory
-```
-
-### 2. Install dependencies
-
-```bash
+# Download Qwen2.5-Math-7B-Base to your local model directory
+2. Install key dependencies
 pip install "qwen-agent[python_executor]"
 pip install math-verify
-```
+pip install accelerate
 
-### 3. Apply patch
+Flash Attention was built from source to match the local PyTorch / CUDA / ABI environment.
 
-File: `verl/workers/sharding_manager/fsdp_vllm.py`
-
-In the `__enter__` method, add `torch.cuda.empty_cache()` before `wake_up()`:
-
-```python
-torch.cuda.empty_cache()
-self.inference_engine.wake_up()
-```
-
-### 4. Set environment variables
-
-```bash
+3. Set environment variables
 export VLLM_USE_V1=0
 export NCCL_CUMEM_ENABLE=0
-```
-
-### 5. Run training
-
-```bash
+export LD_LIBRARY_PATH=/root/miniconda3/lib/python3.12/site-packages/torch/lib:/root/miniconda3/lib:/root/miniconda3/lib64:$LD_LIBRARY_PATH
+4. Run training
 cd scripts
 bash torl_7b_2gpu.sh
-```
+Engineering Notes
 
----
+Running ToRL on a 2-GPU AutoDL instance required several practical fixes:
 
-## Critical Bug Fixes
-
-Running ToRL on 2×A800 with vLLM 0.8.1 required solving 11 issues.
-See [docs/troubleshooting.md](docs/troubleshooting.md) for full details.
-
-| Issue | Fix |
-|-------|-----|
-| vLLM V1 engine flashinfer incompatibility | `VLLM_USE_V1=0` |
-| NCCL + vLLM cuMem conflict → OOM at wake_up | `NCCL_CUMEM_ENABLE=0` |
-| PyTorch cache blocking cuMem remapping | `torch.cuda.empty_cache()` before `wake_up()` |
-| `torch_c_dlpack_ext` ABI mismatch | `pip uninstall torch_c_dlpack_ext` |
-| Missing Python executor dependencies | `pip install "qwen-agent[python_executor]"` |
-| Backward OOM | `ppo_max_token_len_per_gpu=8192` |
-
----
-
-## Training Dynamics
-
-*Plots will be added after training completes.*
-
-- [ ] Reward / score mean curve
-- [ ] Code call rate over training steps
-- [ ] Tool execution success rate
-- [ ] Response length curve
-- [ ] Error type distribution
-
----
-
-## Project Structure
-
-```
+IssueFix
+Flash Attention binary ABI mismatchRebuilt flash-attn==2.7.4.post1 from source
+Missing accelerate dependencyInstalled accelerate for FSDP initialization
+libc10.so not foundAdded PyTorch library path to LD_LIBRARY_PATH
+vLLM / Ray initialization warningsVerified non-fatal after model and rollout engine loaded successfully
+Long training scheduleStopped after obtaining checkpoints and validation results up to step 260
+Project Structure
 ToRL-Reproduction/
+├── README.md
 ├── scripts/
-│   └── torl_7b_2gpu.sh      # Training script (modified)
+│   └── torl_7b_2gpu.sh
 ├── docs/
-│   ├── troubleshooting.md   # 11 bugs and fixes
-│   └── environment.md       # Full environment setup
-├── analysis/                # Training dynamics plots (TBD)
-├── results/                 # Eval results (TBD)
-└── logs/                    # Training logs (TBD)
-```
+│   ├── troubleshooting.md
+│   └── environment.md
+├── analysis/
+│   ├── torl_validation_accuracy_curve.png
+│   └── torl_validation_accuracy_curve.svg
+├── results/
+│   ├── torl_validation_summary.csv
+│   └── torl_validation_best_metrics.csv
+└── logs/
+    └── torl_train.log
+Notes
 
----
+This reproduction focuses on running and analyzing the ToRL training pipeline rather than releasing a final merged HuggingFace checkpoint.
 
-## Citation
+The original training checkpoint is stored in FSDP-sharded format. Since the original repository does not provide a standalone evaluation script, this report uses the validation results automatically produced during training. These results are suitable for reproduction analysis and training-dynamics discussion, but should not be described as an official final benchmark.
 
-```bibtex
+Citation
 @misc{li2025torlscalingtoolintegratedrl,
   title={ToRL: Scaling Tool-Integrated RL},
   author={Xuefeng Li and Haoyang Zou and Pengfei Liu},
@@ -241,10 +152,6 @@ ToRL-Reproduction/
   eprint={2503.23383},
   archivePrefix={arXiv}
 }
-```
+Acknowledgements
 
----
-
-## Acknowledgements
-
-Based on the official [GAIR-NLP/ToRL](https://github.com/GAIR-NLP/ToRL) repository.
+This project is based on the official GAIR-NLP/ToRL repository.
